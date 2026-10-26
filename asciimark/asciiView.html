@@ -1,0 +1,127 @@
+﻿<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AsciiDoc</title>
+<style>
+:root{color-scheme:light dark;--bg:#f4f6f9;--panel:#fff;--ink:#172033;--muted:#667085;--line:#d9dee8;--accent:#315eea;--toolbar:#101828}
+@media(prefers-color-scheme:dark){:root{--bg:#111827;--panel:#1b2432;--ink:#e5eaf2;--muted:#a5afbf;--line:#394456;--accent:#89a7ff;--toolbar:#0b1220}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;height:100vh;display:flex;flex-direction:column}
+header{background:var(--toolbar);color:#fff;padding:10px 16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}header strong{font-size:16px;margin-right:auto}.toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap}button,.filebutton{font:inherit;border:1px solid #58647a;border-radius:7px;background:#202c40;color:#fff;padding:7px 11px;cursor:pointer}button:hover,.filebutton:hover{background:#2d3c55}input[type=file]{display:none}input[type=text]{font:inherit;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:6px 8px;width:205px}.wrap{display:flex;flex:1;min-height:0;gap:12px;padding:12px}.side{width:40%;min-width:260px;display:flex;flex-direction:column;gap:8px}.pane{background:var(--panel);border:1px solid var(--line);border-radius:9px;overflow:hidden;display:flex;flex-direction:column;min-height:0;flex:1}.pane h2{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0;padding:9px 12px;border-bottom:1px solid var(--line)}textarea{resize:none;flex:1;min-height:0;width:100%;border:0;outline:0;padding:14px;background:var(--panel);color:var(--ink);font:13px/1.55 ui-monospace,SFMono-Regular,Consolas,monospace;tab-size:2}.preview{flex:1;min-width:0}.preview iframe{border:0;width:100%;height:100%;background:white}.hint{font-size:12px;color:var(--muted);padding:0 2px}.error{color:#b42318;white-space:pre-wrap;padding:8px 12px;font:12px ui-monospace,monospace}.status{font-size:12px;opacity:.8;max-width:230px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+.sidebar{width:245px;flex:0 0 245px;background:var(--panel);border:1px solid var(--line);border-radius:9px;overflow:auto;display:flex;flex-direction:column;min-height:0}.sidebar h2{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0;padding:9px 12px;border-bottom:1px solid var(--line)}#toc{overflow:auto;padding:8px;flex:1}.toc-link{display:block;width:100%;text-align:left;border:0;background:transparent;color:var(--ink);padding:5px 8px;border-radius:5px;cursor:pointer;font-size:13px;line-height:1.35}.toc-link:hover,.toc-link.active{background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--accent)}.toc-link[data-level="1"]{font-weight:650}.toc-link[data-level="3"],.toc-link[data-level="4"],.toc-link[data-level="5"],.toc-link[data-level="6"]{font-size:12px}.toc-empty{padding:10px;color:var(--muted);font-size:13px}.workspace{display:flex;flex:1;min-width:0;min-height:0;gap:12px}@media(max-width:800px){.wrap{gap:8px;padding:8px}.sidebar{width:190px;flex-basis:190px}.workspace{gap:8px}}
+
+
+body.view-mode .workspace .side{display:none}body.view-mode .workspace .preview{flex:1}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/@asciidoctor/core@2.2.9/dist/browser/asciidoctor.js"></script>
+</head>
+<body>
+<header><strong>AsciiDoc Editor</strong><div class="toolbar">
+<label class="filebutton" for="file">Open .adoc</label><input id="file" type="file" accept=".adoc,.asciidoc,.asc,.ad,.txt,text/plain">
+<button id="sample">Sample</button><button id="download">Save rendered HTML</button><button id="print">Print</button>
+<label for="attrs" class="status">Attributes</label><input id="attrs" type="text" placeholder="backend=html5, env-browser">
+</div><span id="filename" class="status">No file loaded</span><span id="engineStatus" class="status">Parser loads from jsDelivr</span></header>
+<div class="wrap">
+<aside class="sidebar" aria-label="Document navigation"><h2>Contents</h2><nav id="toc" aria-label="Table of contents"></nav></aside>
+<div class="workspace">
+<section class="side"><div class="pane"><h2>AsciiDoc source</h2><textarea id="source" spellcheck="false" aria-label="AsciiDoc source"></textarea></div><div class="hint">Edit or open a file. Conditional directives such as ifdef/ifndef/ifeval respond to document and viewer attributes.</div></section>
+<section class="pane preview"><h2>Preview</h2><div id="error" class="error" hidden></div><iframe id="rendered" title="Rendered AsciiDoc preview" sandbox="allow-same-origin"></iframe></section>
+</div>
+</div>
+<script>
+(()=>{
+'use strict';
+const $=id=>document.getElementById(id), source=$('source'), iframe=$('rendered'), err=$('error');const mode='view';
+document.body.classList.toggle('view-mode',mode==='view');
+document.title=mode==='view'?'AsciiDoc Viewer':'AsciiDoc Editor';
+document.querySelector('header strong').textContent=mode==='view'?'AsciiDoc Viewer':'AsciiDoc Editor';
+const engine=window.Asciidoctor?Asciidoctor():null;
+const sample=`= AsciiDoc Viewer Demo
+:toc:
+:icons: font
+:table-caption: Table
+
+== Common markup
+
+A paragraph with *bold*, _italic_, `+'`monospace`'+`, https://asciidoc.org[links], and a footnote:[A footnote].
+
+NOTE: Admonitions, lists, sections, cross references, images, and source blocks are handled by Asciidoctor.
+
+== Conditional text
+
+ifdef::env-browser[]
+This paragraph is included because the viewer sets the 'env-browser' attribute.
+endif::[]
+
+ifndef::print-only[]
+This is shown unless the 'print-only' attribute is set.
+endif::[]
+
+== Nested table
+
+[cols="1,2",options="header"]
+|===
+|Feature |Example
+
+|Outer cell
+|A cell containing a nested table:
++
+[cols="1,1"]
+!===
+!Nested key !Nested value
+
+!One !Two
+!===
+
+|===
+
+== Source code
+
+[source,js]
+----
+const message = "Hello, AsciiDoc!";
+console.log(message);
+----
+`;
+function attributes(){const out={"env-browser":""};$('attrs').value.split(',').map(s=>s.trim()).filter(Boolean).forEach(pair=>{const i=pair.indexOf('=');if(i<0)out[pair]='';else out[pair.slice(0,i).trim()]=pair.slice(i+1).trim()});return out}
+function buildToc(){const nav=$("toc");nav.replaceChildren();const doc=iframe.contentDocument;const headings=[...doc.querySelectorAll("h1[id],h2[id],h3[id],h4[id],h5[id],h6[id]")];if(!headings.length){const empty=document.createElement("div");empty.className="toc-empty";empty.textContent="No section headings in this document.";nav.append(empty);return}for(const heading of headings){const button=document.createElement("button");button.type="button";button.className="toc-link";button.dataset.target=heading.id;button.dataset.level=heading.tagName.slice(1);button.style.paddingLeft=(8+(Number(button.dataset.level)-1)*12)+"px";button.textContent=heading.textContent.trim();button.title=button.textContent;nav.append(button)}}function render(){if(!engine){err.hidden=false;err.textContent='Asciidoctor.js did not load from cdn.jsdelivr.net. Check internet access and reload. Source is shown below.';const d=iframe.contentDocument;d.body.innerHTML='';d.body.style.cssText='font:15px/1.6 system-ui,sans-serif;margin:24px;color:#263044';const h=d.createElement('h2');h.textContent='Preview unavailable';d.body.append(h);const p=d.createElement('p');p.textContent='Parser unavailable. Check internet access to cdn.jsdelivr.net.';d.body.append(p);const pre=d.createElement('pre');pre.style.whiteSpace='pre-wrap';pre.textContent=source.value;d.body.append(pre);return}err.hidden=true;try{const html=engine.convert(source.value,{safe:'unsafe',standalone:false,attributes:attributes(),doctype:'article',header_footer:false});const doc=iframe.contentDocument;doc.open();doc.write('<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><style>body{font:16px/1.65 system-ui,-apple-system,"Segoe UI",sans-serif;color:#263044;max-width:960px;margin:32px auto;padding:0 28px}h1,h2,h3{line-height:1.25}a{color:#315eea}pre,code{font-family:ui-monospace,Consolas,monospace}pre{overflow:auto;padding:14px;background:#f1f3f7;border-radius:6px}table{border-collapse:collapse;margin:1em 0;width:100%}td,th{border:1px solid #ccd2dd;padding:8px;vertical-align:top}th{background:#f1f3f7}blockquote{border-left:4px solid #9aa6bc;margin-left:0;padding-left:1em;color:#596579}.admonitionblock{margin:1em 0}.paragraph{margin:.8em 0}</style></head><body>'+html+'</body></html>');doc.close();buildToc();$('filename').textContent=$('filename').dataset.name||'Unsaved document'}catch(e){err.hidden=false;err.textContent='Conversion error: '+String(e);const d=iframe.contentDocument;d.body.innerHTML='';d.body.style.cssText='font:15px/1.6 system-ui,sans-serif;margin:24px;color:#263044';const h=d.createElement('h2');h.textContent='Conversion error';d.body.append(h);const p=d.createElement('p');p.textContent=String(e);d.body.append(p);const pre=d.createElement('pre');pre.style.whiteSpace='pre-wrap';pre.textContent=source.value;d.body.append(pre)}}
+$('toc').addEventListener('click',e=>{const button=e.target.closest('[data-target]');if(!button)return;const heading=iframe.contentDocument.getElementById(button.dataset.target);if(heading){heading.scrollIntoView({behavior:'smooth',block:'start'});$('toc').querySelectorAll('.active').forEach(el=>el.classList.remove('active'));button.classList.add('active')}});
+source.addEventListener('input',render);$('attrs').addEventListener('input',render);
+$('file').addEventListener('change',async e=>{const f=e.target.files[0];if(!f)return;source.value=await f.text();$('filename').dataset.name=f.name;$('filename').textContent=f.name;render()});
+$('sample').addEventListener('click',()=>{source.value=sample;$('filename').dataset.name='';$('filename').textContent='Sample document';render()});
+$('print').addEventListener('click',()=>iframe.contentWindow.print());
+$('download').addEventListener('click',()=>{const d=iframe.contentDocument;const blob=new Blob(['<!doctype html>\n'+d.documentElement.outerHTML],{type:'text/html;charset=utf-8'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=(($('filename').dataset.name||'document').replace(/\.[^.]+$/,'')||'document')+'.html';a.click();URL.revokeObjectURL(a.href)});
+// Add a true single-pane WYSIWYG mode while keeping source and split views available.
+const modeStyle=document.createElement('style');modeStyle.textContent=`.workspace{display:flex;flex:1;min-width:0;min-height:0;gap:12px}body.single-visual .workspace .side,body.single-source .workspace .preview{display:none}body.single-visual .workspace .preview,body.single-source .workspace .side{display:flex;flex:1;width:auto;min-width:0}#editModes{display:flex;gap:4px}#editModes button{padding:5px 9px;font-size:12px}#editModes button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent)}body.view-mode #editModes{display:none}@media(max-width:800px){.workspace{gap:8px}}`;
+document.head.append(modeStyle);
+let editMode='visual';let visualEdited=false;
+document.body.classList.add('single-visual');
+const modeGroup=document.createElement('div');modeGroup.id='editModes';modeGroup.setAttribute('role','group');modeGroup.setAttribute('aria-label','Editing mode');
+for(const name of ['visual','source','split']){const button=document.createElement('button');button.type='button';button.dataset.mode=name;button.textContent=name[0].toUpperCase()+name.slice(1);button.setAttribute('aria-pressed',String(name===editMode));modeGroup.append(button)}
+document.querySelector('header .toolbar').append(modeGroup);
+function inlineToAsciiDoc(node){if(node.nodeType===Node.TEXT_NODE)return node.nodeValue.replace(/\\/g,'\\\\').replace(/([*_`])/g,'\\$1');if(node.nodeType!==Node.ELEMENT_NODE)return'';const tag=node.tagName.toLowerCase(),text=[...node.childNodes].map(inlineToAsciiDoc).join('');if(tag==='strong'||tag==='b')return`*${text}*`;if(tag==='em'||tag==='i')return`_${text}_`;if(tag==='code')return'`'+text.replace(/`/g,'\\`')+'`';if(tag==='a'){const href=node.getAttribute('href');return href?`${href}[${text}]`:text}if(tag==='br')return' +\n';if(tag==='img')return`image:${node.getAttribute('src')||''}[${node.getAttribute('alt')||''}]`;return text}
+function blockToAsciiDoc(node){if(node.nodeType!==Node.ELEMENT_NODE)return'';const tag=node.tagName.toLowerCase();if(/^h[1-6]$/.test(tag))return`${'='.repeat(Number(tag[1]))} ${inlineToAsciiDoc(node).trim()}`;if(tag==='p')return inlineToAsciiDoc(node).trim();if(tag==='ul'||tag==='ol'){const mark=tag==='ul'?'*':'.';return[...node.children].filter(el=>el.tagName.toLowerCase()==='li').map(el=>`${mark} ${inlineToAsciiDoc(el).trim()}`).join('\n')}if(tag==='pre'){const code=node.querySelector('code'),lang=code?.className.match(/language-([\w+-]+)/)?.[1]||'';return`${lang?`[source,${lang}]\n`:''}----\n${(code||node).textContent.replace(/\n$/,'')}\n----`}if(tag==='blockquote')return`____\n${inlineToAsciiDoc(node).trim()}\n____`;if(tag==='hr')return"'''";if(tag==='table'){const rows=[...node.querySelectorAll('tr')].map(row=>[...row.children].map(cell=>`|${inlineToAsciiDoc(cell).trim()}`).join('\n')).join('\n\n');return`|===\n${rows}\n|===`}if(['div','section','article'].includes(tag))return[...node.children].map(blockToAsciiDoc).filter(Boolean).join('\n\n');return inlineToAsciiDoc(node).trim()}
+function syncVisualToSource(){source.value=[...iframe.contentDocument.body.children].map(blockToAsciiDoc).filter(Boolean).join('\n\n')+'\n';$('filename').textContent=$('filename').dataset.name||'Unsaved document'}
+const renderSource=render;render=function(){renderSource();const body=iframe.contentDocument?.body;if(!body)return;body.contentEditable=mode!=='view'&&editMode!=='source';body.spellcheck=true;body.oninput=()=>{visualEdited=true;syncVisualToSource()};};
+source.addEventListener('input',()=>{const body=iframe.contentDocument?.body;if(body){body.contentEditable=mode!=='view'&&editMode!=='source';body.oninput=()=>{visualEdited=true;syncVisualToSource()}}});$('attrs').addEventListener('input',()=>{const body=iframe.contentDocument?.body;if(body){body.contentEditable=mode!=='view'&&editMode!=='source';body.oninput=()=>{visualEdited=true;syncVisualToSource()}}});
+modeGroup.addEventListener('click',event=>{const button=event.target.closest('[data-mode]');if(!button)return;if(editMode==='visual'&&visualEdited)syncVisualToSource();editMode=button.dataset.mode;document.body.classList.toggle('single-visual',editMode==='visual');document.body.classList.toggle('single-source',editMode==='source');modeGroup.querySelectorAll('button').forEach(item=>item.setAttribute('aria-pressed',String(item===button)));render();});
+source.value=sample;render();
+})();
+</script>
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+
+
+
+
